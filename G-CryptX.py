@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*- 
 """
 G-CryptX - Advanced Python Encryption Tool
 Developer: Ahmed Nour Ahmed from Qena
