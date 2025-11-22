@@ -1,530 +1,592 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 """
-G-CryptX - Advanced Python Encryption Tool
+G-CryptX — Ghost Encryption Engine
 Developer: Ahmed Nour Ahmed from Qena
-License: Ethical Use Only - Ghost ©
+© Ghost © 2025 — All Rights Reserved
+
+Powerful, Ethical, and Intense Hacking-Themed Python Encryption Tool
+For Linux Only — One-File Executable with In-Memory Execution
 """
 
 import os
 import sys
 import time
-import hashlib
-import secrets
 import threading
-import subprocess
+import hashlib
 import base64
+import secrets
+import subprocess
 import json
-import traceback
-from io import StringIO
-from contextlib import redirect_stdout, redirect_stderr
+import logging
+from pathlib import Path
 
-# Linux-only check
+# Only allow Linux
 if sys.platform != "linux":
-    print("❌ G-CryptX runs ONLY on Linux systems.")
+    print("⚠️ G-CryptX works ONLY on Linux systems.")
     sys.exit(1)
 
+# --- Imports ---
 try:
     import customtkinter as ctk
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-    from PIL import Image, ImageTk
-    import psutil
+    from pydub import AudioSegment
+    from pydub.playback import play
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
 except ImportError as e:
     print(f"❌ Missing dependency: {e}")
-    print("Install with: pip3 install cryptography customtkinter pillow psutil")
+    print("Install with: pip install customtkinter cryptography pydub")
     sys.exit(1)
 
-# Audio simulation (using system beep for simplicity; replace with real .wav if desired)
-try:
-    import pygame
-    pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
-    SOUND_ENABLED = True
-except:
-    SOUND_ENABLED = False
+# --- Constants ---
+APP_NAME = "G-CryptX"
+VERSION = "v2.1.0"
+DEVELOPER_EN = "Ahmed Nour Ahmed from Qena"
+DEVELOPER_AR = "أحمد نور أحمد من قنا"
+WATERMARK = "Ghost ©"
+ICON_PATH = "G-CryptX.png"
+SPLASH_DURATION = 3000  # ms
+NEON_GREEN = "#00ff41"
+DARK_BG = "#000000"
+SECONDARY_BG = "#0f0f0f"
+MATRIX_CHARS = "01"
 
-# ============= SOUND EFFECTS =============
-def play_success_sound():
-    if not SOUND_ENABLED:
-        os.system("echo -e '\a' &> /dev/null")
-        return
-    sound = pygame.mixer.Sound(buffer=bytearray([128]*100 + [200]*100))
-    sound.play()
+# --- Setup Logging ---
+log_stream = []
+class LogHandler(logging.Handler):
+    def emit(self, record):
+        msg = self.format(record)
+        log_stream.append(msg)
+        if hasattr(GCryptXApp, 'instance') and GCryptXApp.instance:
+            GCryptXApp.instance.update_log_display()
 
-def play_error_sound():
-    if not SOUND_ENABLED:
-        os.system("echo -e '\a\a' &> /dev/null")
-        return
-    sound = pygame.mixer.Sound(buffer=bytearray([50]*50 + [30]*50))
-    sound.play()
+logging.basicConfig(level=logging.INFO, handlers=[LogHandler()], format='%(asctime)s | %(levelname)s | %(message)s')
+logger = logging.getLogger("G-CryptX")
 
-# ============= MATRIX BACKGROUND =============
+# --- Audio Alerts ---
+def play_sound(success=True):
+    def _play():
+        try:
+            if success:
+                sound = AudioSegment.silent(duration=100) + AudioSegment.from_file(
+                    io.BytesIO(base64.b64decode(
+                        b'UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBRRSf7GfbUI2L0+Iu8B8Py0wWZO7t59sRTUxU4y8wXczKzJimL+5l2E9NDBSh7W8mF44LzNXjbu7l145MDJYkLq3k1sxLzVfkrq1jVQvLzRdjrWxh08tLjJfj7Gse0YoKzJijKuodD8nKTBli6mmbTkoJzBjh6OjZjQmJy9gf52ZaDQmJy5ceJWWYzEkJS1YdpKMXy8kJCtTb46LWiwjIyhNao2KVSwiIiZIY4iGTiohISEeS2F+iEknIB8fHh9DWXZ8iiUeHR0cHR8fHyAhISEgHyAhIiIiIiMkJCMkJCUmJiYmJiYnJycnJycnKCgoKCgoKCkpKSkpKSkqKioqKioqKysrKysrKywsLCwsLCwsLS0tLS0tLS4uLi4uLi4vLy8vLy8vMDAwMDAwMDExMTExMTExMjIyMjIyMjMzMzMzMzM0NDQ0NDQ0NTU1NTU1NTY2NjY2NjY3Nzc3Nzc3ODg4ODg4ODk5OTk5OTk6Ojo6Ojo6Ozs7Ozs7Oz09PT09PT0+Pj4+Pj4+Pz8/Pz8/P0BAQEBAQEBAQUFBQUFBQUJCQkJCQkJDQ0NDQ0NDQ0REREQ='
+                    )), format="wav")
+            else:
+                sound = AudioSegment.silent(duration=50) + AudioSegment.from_file(
+                    io.BytesIO(base64.b64decode(
+                        b'UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBRRSf7GfbUI2L0+Iu8B8Py0wWZO7t59sRTUxU4y8wXczKzJimL+5l2E9NDBSh7W8mF44LzNXjbu7l145MDJYkLq3k1sxLzRfjrWxh08tLjJfj7Gse0YoKzJijKuodD8nKTBli6mmbTkoJzBjh6OjZjQmJy9gf52ZaDQmJy5ceJWWYzEkJS1YdpKMXy8kJCtTb46LWiwjIyhNao2KVSwiIiZIY4iGTiohISEeS2F+iEknIB8fHh9DWXZ8iiUeHR0cHR8fHyAhISEgHyAhIiIiIiMkJCMkJCUmJiYmJiYnJycnJycnKCgoKCgoKCkpKSkpKSkqKioqKioqKysrKysrKywsLCwsLCwsLS0tLS0tLS4uLi4uLi4vLy8vLy8vMDAwMDAwMDExMTExMTExMjIyMjIyMjMzMzMzMzM0NDQ0NDQ0NTU1NTU1NTY2NjY2NjY3Nzc3Nzc3ODg4ODg4ODk5OTk5OTk6Ojo6Ojo6Ozs7Ozs7Oz09PT09PT0+Pj4+Pj4+Pz8/Pz8/P0BAQEBAQEBAQUFBQUFBQUJCQkJCQkJDQ0NDQ0NDQ0REREQ='
+                    )), format="wav")
+                sound = sound.reverse()
+            play(sound)
+        except Exception:
+            pass  # Fail silently if audio fails
+    threading.Thread(target=_play, daemon=True).start()
+
+# --- Matrix Background Canvas ---
 class MatrixBackground(ctk.CTkFrame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-        self.configure(fg_color="#000000")
-        self.canvas = ctk.CTkCanvas(self, bg="#000000", highlightthickness=0)
+        self.configure(fg_color=DARK_BG)
+        self.canvas = tk.Canvas(self, bg=DARK_BG, highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
-        self.chars = "01"
-        self.drops = []
-        self.text_ids = []
-        self.after(100, self.init_drops)
+        self.columns = []
+        self.delay = 50
+        self.after(100, self.start_matrix)
+
+    def start_matrix(self):
+        self.width = self.winfo_width()
+        self.height = self.winfo_height()
+        if self.width < 10 or self.height < 10:
+            self.after(100, self.start_matrix)
+            return
+        col_count = self.width // 15
+        for _ in range(col_count):
+            self.columns.append({
+                'x': len(self.columns) * 15,
+                'y': -20,
+                'speed': secrets.randbelow(5) + 2,
+                'length': secrets.randbelow(20) + 5
+            })
         self.animate()
 
-    def init_drops(self):
-        self.width = int(self.canvas.winfo_width() or 800)
-        self.height = int(self.canvas.winfo_height() or 600)
-        cols = self.width // 20
-        self.drops = [0 for _ in range(cols)]
-        self.text_ids = [None for _ in range(cols)]
-
     def animate(self):
-        self.width = int(self.canvas.winfo_width() or 800)
-        self.height = int(self.canvas.winfo_height() or 600)
-        cols = self.width // 20
-        if len(self.drops) != cols:
-            self.drops = [0 for _ in range(cols)]
-            self.text_ids = [None for _ in range(cols)]
+        self.canvas.delete("all")
+        for col in self.columns:
+            col['y'] += col['speed']
+            if col['y'] - col['length'] * 15 > self.height:
+                col['y'] = -20
+                col['length'] = secrets.randbelow(20) + 5
+            for i in range(col['length']):
+                y_pos = col['y'] - i * 15
+                if 0 <= y_pos < self.height:
+                    char = secrets.choice(MATRIX_CHARS)
+                    color = NEON_GREEN if i == 0 else "#005500"
+                    self.canvas.create_text(
+                        col['x'], y_pos,
+                        text=char, fill=color,
+                        font=("Consolas", 12, "bold")
+                    )
+        self.after(self.delay, self.animate)
 
-        self.canvas.delete("matrix")
-        for i in range(len(self.drops)):
-            x = i * 20
-            y = self.drops[i] * 20
-            char = secrets.choice(self.chars)
-            color = "#00ff00" if secrets.randbelow(10) > 7 else "#003300"
-            self.text_ids[i] = self.canvas.create_text(
-                x, y, text=char, fill=color, font=("OCR A Extended", 14, "bold"), tags="matrix"
+# --- Splash Screen ---
+class SplashScreen(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("")
+        self.geometry("500x300")
+        self.configure(fg_color=DARK_BG)
+        self.overrideredirect(True)
+        self.transient(parent)
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = int((screen_width / 2) - (500 / 2))
+        y = int((screen_height / 2) - (300 / 2))
+        self.geometry(f"500x300+{x}+{y}")
+
+        try:
+            img = tk.PhotoImage(file=ICON_PATH)
+            label_img = ctk.CTkLabel(self, image=img, text="")
+            label_img.image = img
+            label_img.pack(pady=20)
+        except:
+            label_title = ctk.CTkLabel(
+                self, text=APP_NAME,
+                font=("OCR A Extended", 32, "bold"),
+                text_color=NEON_GREEN
             )
-            self.drops[i] += 1
-            if y > self.height or secrets.randbelow(100) < 2:
-                self.drops[i] = 0
-        self.after(50, self.animate)
+            label_title.pack(pady=20)
 
-# ============= MAIN APP =============
+        self.label = ctk.CTkLabel(
+            self, text="Welcome to G-CryptX — Ghost Encryption Engine Initiated ⚡",
+            font=("Consolas", 14), text_color=NEON_GREEN
+        )
+        self.label.pack(pady=10)
+
+        self.progress = ctk.CTkProgressBar(self, width=400, height=8)
+        self.progress.set(0)
+        self.progress.pack(pady=20)
+
+        self.loading_thread = threading.Thread(target=self.simulate_loading, daemon=True)
+        self.loading_thread.start()
+
+    def simulate_loading(self):
+        for i in range(101):
+            time.sleep(0.03)
+            self.progress.set(i / 100)
+            self.update_idletasks()
+        self.destroy()
+
+# --- Main App ---
 class GCryptXApp(ctk.CTk):
+    instance = None
+
     def __init__(self):
         super().__init__()
-        self.title("G-CryptX — Ghost Encryption Engine")
-        self.geometry("1024x768")
-        self.minsize(900, 600)
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        GCryptXApp.instance = self
 
-        # Set dark theme
-        ctk.set_appearance_mode("Dark")
-        ctk.set_default_color_theme("dark-blue")
+        # Window setup
+        self.title(f"{APP_NAME} {VERSION}")
+        self.geometry("900x650")
+        self.minsize(800, 600)
+        self.configure(fg_color=DARK_BG)
 
-        # Try to set OCR A Extended
         try:
-            test_font = ("OCR A Extended", 12)
-            self.option_add("*Font", test_font)
+            self.iconphoto(False, tk.PhotoImage(file=ICON_PATH))
         except:
             pass
 
+        # Splash
+        splash = SplashScreen(self)
+        self.withdraw()
+        splash.mainloop()
+        self.deiconify()
+
+        # UI
+        self.create_widgets()
+        self.status_bar = ctk.CTkLabel(
+            self, text=f"User: {os.getenv('USER')} | Time: {time.strftime('%H:%M')} | Libraries: ✅",
+            fg_color=SECONDARY_BG, text_color="#aaaaaa", height=25, font=("Consolas", 10)
+        )
+        self.status_bar.pack(side="bottom", fill="x")
+        self.after(1000, self.update_status_time)
+
         # Watermark
-        self.watermark = ctk.CTkLabel(self, text="Ghost ©", font=("Consolas", 10), text_color="#00ff44")
+        self.watermark = ctk.CTkLabel(self, text=WATERMARK, text_color="#333333", font=("Consolas", 10))
         self.watermark.place(relx=0.99, rely=0.99, anchor="se")
 
-        # Developer credit
-        self.dev_label = ctk.CTkLabel(
-            self, 
-            text="Ahmed Nour Ahmed from Qena", 
-            font=("Consolas", 9, "italic"), 
-            text_color="#00aa55"
-        )
-        self.dev_label.place(relx=0.01, rely=0.99, anchor="sw")
+        # Stealth mode hidden terminal
+        self.stealth_window = None
 
-        # Splash screen
-        self.show_splash()
+        logger.info("G-CryptX initialized successfully.")
 
-    def show_splash(self):
-        self.splash = ctk.CTkToplevel(self)
-        self.splash.title("")
-        self.splash.geometry("600x300")
-        self.splash.configure(fg_color="#000000")
-        self.splash.attributes("-topmost", True)
-        self.splash.overrideredirect(True)
+    def update_status_time(self):
+        self.status_bar.configure(text=f"User: {os.getenv('USER')} | Time: {time.strftime('%H:%M:%S')} | Libraries: ✅")
+        self.after(1000, self.update_status_time)
 
-        # Center splash
-        self.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - 300
-        y = self.winfo_y() + (self.winfo_height() // 2) - 150
-        self.splash.geometry(f"+{x}+{y}")
+    def create_widgets(self):
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-        # Logo placeholder (use transparent if missing)
-        try:
-            logo_img = Image.open("G-CryptX.png").convert("RGBA")
-            logo_img = logo_img.resize((120, 120), Image.LANCZOS)
-            logo = ImageTk.PhotoImage(logo_img)
-            logo_label = ctk.CTkLabel(self.splash, image=logo, text="")
-            logo_label.image = logo
-            logo_label.pack(pady=20)
-        except:
-            title_label = ctk.CTkLabel(
-                self.splash,
-                text="G-CryptX",
-                font=("OCR A Extended", 32, "bold"),
-                text_color="#00ff44"
-            )
-            title_label.pack(pady=30)
+        self.notebook = ctk.CTkTabview(self, fg_color=SECONDARY_BG)
+        self.notebook.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-        msg = ctk.CTkLabel(
-            self.splash,
-            text="Welcome to G-CryptX — Ghost Encryption Engine Initiated ⚡",
-            font=("Consolas", 14),
-            text_color="#00ff88",
-            wraplength=500
-        )
-        msg.pack(pady=10)
+        tabs = ["🔒 Encrypt File", "🔓 Decrypt File", "⚙️ Run Encrypted Script", "🧬 Key Generator", "📜 Activity Logs", "Internal Encryption"]
+        for t in tabs:
+            self.notebook.add(t)
 
-        progress = ctk.CTkProgressBar(self.splash, width=400, height=8)
-        progress.set(0)
-        progress.pack(pady=20)
-        progress.configure(progress_color="#00ff00")
-
-        for i in range(1, 101):
-            progress.set(i / 100)
-            self.splash.update()
-            time.sleep(0.01)
-
-        self.splash.destroy()
-        self.init_main_ui()
-
-    def init_main_ui(self):
-        # Matrix background
-        self.bg_frame = MatrixBackground(self)
-        self.bg_frame.place(x=0, y=0, relwidth=1, relheight=1)
-
-        # Main frame on top
-        self.main_frame = ctk.CTkFrame(self, fg_color="#0a0a0a", corner_radius=10)
-        self.main_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.95, relheight=0.92)
-
-        # Tabs
-        self.tabview = ctk.CTkTabview(
-            self.main_frame,
-            fg_color="#0f0f0f",
-            segmented_button_fg_color="#000000",
-            segmented_button_selected_color="#003300",
-            segmented_button_selected_hover_color="#005500",
-            text_color="#00ff44",
-            text_color_disabled="#555555",
-            font=("OCR A Extended", 14, "bold")
-        )
-        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
-
-        tabs = ["🔒 Encrypt File", "🔓 Decrypt File", "⚙️ Run Encrypted Script", 
-                "🧬 Key Generator", "📜 Activity Logs", "Internal Encryption"]
-        for tab in tabs:
-            self.tabview.add(tab)
-
+        # --- Encrypt Tab ---
         self.setup_encrypt_tab()
+        # --- Decrypt Tab ---
         self.setup_decrypt_tab()
+        # --- Run Tab ---
         self.setup_run_tab()
+        # --- Key Gen Tab ---
         self.setup_keygen_tab()
+        # --- Logs Tab ---
         self.setup_logs_tab()
+        # --- Internal Encryption Tab ---
         self.setup_internal_tab()
 
-        # Status bar
-        self.status_bar = ctk.CTkFrame(self, fg_color="#001100", height=25)
-        self.status_bar.pack(side="bottom", fill="x")
-        self.status_time = ctk.CTkLabel(self.status_bar, text="", font=("Consolas", 10), text_color="#00aa00")
-        self.status_user = ctk.CTkLabel(self.status_bar, text=f"User: {os.getlogin()}", font=("Consolas", 10), text_color="#00aa00")
-        self.status_lib = ctk.CTkLabel(self.status_bar, text="Libs: OK", font=("Consolas", 10), text_color="#00aa00")
-        self.status_time.pack(side="left", padx=10)
-        self.status_user.pack(side="left", padx=10)
-        self.status_lib.pack(side="right", padx=10)
-        self.update_time()
-
-        # Stealth mode button
+        # Stealth button
         self.stealth_btn = ctk.CTkButton(
-            self, text="🕶️ Stealth Mode", 
-            command=self.toggle_stealth,
-            fg_color="#002200",
-            hover_color="#004400",
-            text_color="#00ff88",
-            font=("OCR A Extended", 12)
+            self, text="🕶️ Stealth Mode", command=self.toggle_stealth,
+            fg_color="transparent", hover_color="#222222", text_color=NEON_GREEN,
+            font=("Consolas", 14, "bold")
         )
-        self.stealth_btn.place(relx=0.99, rely=0.02, anchor="ne")
+        self.stealth_btn.place(relx=0.01, rely=0.01)
 
-    def update_time(self):
-        self.status_time.configure(text=time.strftime("%Y-%m-%d %H:%M:%S"))
-        self.after(1000, self.update_time)
+    def toggle_stealth(self):
+        if self.stealth_window is None or not self.stealth_window.winfo_exists():
+            self.withdraw()
+            self.stealth_window = ctk.CTkToplevel(self)
+            self.stealth_window.title("Terminal - user@linux")
+            self.stealth_window.geometry("700x500")
+            self.stealth_window.configure(fg_color="#000000")
+            terminal = ctk.CTkTextbox(self.stealth_window, font=("Consolas", 12), fg_color="#000000", text_color=NEON_GREEN)
+            terminal.pack(fill="both", expand=True, padx=10, pady=10)
+            terminal.insert("end", "user@linux:~$ ")
+            terminal.configure(state="disabled")
+            self.stealth_window.protocol("WM_DELETE_WINDOW", self.exit_stealth)
+        else:
+            self.stealth_window.focus()
 
-    def log(self, msg, color="green"):
-        timestamp = time.strftime("%H:%M:%S")
-        formatted = f"[{timestamp}] {msg}"
-        self.log_text.configure(state="normal")
-        self.log_text.insert("end", formatted + "\n", color)
-        self.log_text.configure(state="disabled")
-        self.log_text.see("end")
+    def exit_stealth(self):
+        if self.stealth_window:
+            self.stealth_window.destroy()
+            self.stealth_window = None
+        self.deiconify()
 
     def setup_encrypt_tab(self):
-        tab = self.tabview.tab("🔒 Encrypt File")
-        ctk.CTkLabel(tab, text="Select file to encrypt:", font=("OCR A Extended", 16), text_color="#00ff88").pack(pady=10)
-        self.encrypt_file_path = ctk.CTkEntry(tab, placeholder_text="File path...", width=500, font=("Consolas", 12))
-        self.encrypt_file_path.pack(pady=5)
-        ctk.CTkButton(tab, text="Browse", command=lambda: self.browse_file(self.encrypt_file_path), 
-                      fg_color="#003300", hover_color="#005500").pack(pady=5)
-        ctk.CTkButton(tab, text="🔐 ENCRYPT", command=self.encrypt_file, 
-                      fg_color="#005500", hover_color="#00aa00", font=("OCR A Extended", 14, "bold")).pack(pady=20)
+        tab = self.notebook.tab("🔒 Encrypt File")
+        tab.grid_columnconfigure(0, weight=1)
+
+        self.encrypt_file_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Select Python File to Encrypt:", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=0, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.encrypt_file_path, width=500).grid(row=1, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse", command=self.browse_encrypt_file, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=1, column=1, padx=5)
+
+        self.encrypt_key_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Select Encryption Key (.key):", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=2, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.encrypt_key_path, width=500).grid(row=3, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse Key", command=self.browse_key_file, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=3, column=1, padx=5)
+
+        self.encrypt_progress = ctk.CTkProgressBar(tab, width=500)
+        self.encrypt_progress.set(0)
+        self.encrypt_progress.grid(row=4, column=0, pady=10)
+
+        ctk.CTkButton(tab, text="🔒 ENCRYPT", command=self.encrypt_file, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33", font=("OCR A Extended", 16, "bold")).grid(row=5, column=0, pady=20)
 
     def setup_decrypt_tab(self):
-        tab = self.tabview.tab("🔓 Decrypt File")
-        ctk.CTkLabel(tab, text="Encrypted file:", font=("OCR A Extended", 16), text_color="#00ff88").pack(pady=5)
-        self.decrypt_file_path = ctk.CTkEntry(tab, placeholder_text="Encrypted file path...", width=500, font=("Consolas", 12))
-        self.decrypt_file_path.pack(pady=5)
-        ctk.CTkButton(tab, text="Browse", command=lambda: self.browse_file(self.decrypt_file_path)).pack(pady=5)
+        tab = self.notebook.tab("🔓 Decrypt File")
+        tab.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(tab, text="Decryption key (Base64):", font=("OCR A Extended", 16), text_color="#00ff88").pack(pady=10)
-        self.decrypt_key = ctk.CTkEntry(tab, placeholder_text="Paste key here...", width=500, font=("Consolas", 12))
-        self.decrypt_key.pack(pady=5)
+        self.decrypt_file_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Select Encrypted File:", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=0, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.decrypt_file_path, width=500).grid(row=1, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse", command=self.browse_decrypt_file, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=1, column=1, padx=5)
 
-        ctk.CTkButton(tab, text="🔓 DECRYPT", command=self.decrypt_file, 
-                      fg_color="#005500", hover_color="#00aa00", font=("OCR A Extended", 14, "bold")).pack(pady=20)
+        self.decrypt_key_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Select Key File:", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=2, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.decrypt_key_path, width=500).grid(row=3, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse Key", command=self.browse_key_file_decrypt, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=3, column=1, padx=5)
+
+        ctk.CTkButton(tab, text="🔓 DECRYPT", command=self.decrypt_file, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33", font=("OCR A Extended", 16, "bold")).grid(row=4, column=0, pady=20)
 
     def setup_run_tab(self):
-        tab = self.tabview.tab("⚙️ Run Encrypted Script")
-        ctk.CTkLabel(tab, text="Select encrypted .py file to run:", font=("OCR A Extended", 16), text_color="#00ff88").pack(pady=10)
-        self.run_file_path = ctk.CTkEntry(tab, placeholder_text="Encrypted Python file...", width=500, font=("Consolas", 12))
-        self.run_file_path.pack(pady=5)
-        ctk.CTkButton(tab, text="Browse", command=lambda: self.browse_file(self.run_file_path)).pack(pady=5)
-        ctk.CTkButton(tab, text="▶️ RUN IN MEMORY", command=self.run_encrypted_script, 
-                      fg_color="#005500", hover_color="#00aa00", font=("OCR A Extended", 14, "bold")).pack(pady=20)
+        tab = self.notebook.tab("⚙️ Run Encrypted Script")
+        tab.grid_columnconfigure(0, weight=1)
+
+        self.run_file_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Select Encrypted Python Script:", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=0, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.run_file_path, width=500).grid(row=1, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse", command=self.browse_run_file, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=1, column=1, padx=5)
+
+        self.run_key_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Select Key File:", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=2, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.run_key_path, width=500).grid(row=3, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse Key", command=self.browse_key_file_run, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=3, column=1, padx=5)
+
+        ctk.CTkButton(tab, text="🚀 RUN IN MEMORY", command=self.run_encrypted_script, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33", font=("OCR A Extended", 16, "bold")).grid(row=4, column=0, pady=20)
 
     def setup_keygen_tab(self):
-        tab = self.tabview.tab("🧬 Key Generator")
-        ctk.CTkLabel(tab, text="Generate secure AES-256 key", font=("OCR A Extended", 16), text_color="#00ff88").pack(pady=10)
-        self.key_output = ctk.CTkTextbox(tab, width=500, height=100, font=("Consolas", 12))
-        self.key_output.pack(pady=10)
-        ctk.CTkButton(tab, text="🎲 GENERATE KEY", command=self.generate_key, 
-                      fg_color="#005500", hover_color="#00aa00", font=("OCR A Extended", 14, "bold")).pack(pady=10)
-        ctk.CTkLabel(tab, text="Save key with password (optional):", font=("OCR A Extended", 14), text_color="#00cc66").pack(pady=5)
-        self.key_pass = ctk.CTkEntry(tab, placeholder_text="Password to encrypt key...", width=400, show="*", font=("Consolas", 12))
-        self.key_pass.pack(pady=5)
-        ctk.CTkButton(tab, text="💾 SAVE KEY SECURELY", command=self.save_key_securely, 
-                      fg_color="#004400", hover_color="#007700").pack(pady=5)
+        tab = self.notebook.tab("🧬 Key Generator")
+        tab.grid_columnconfigure(0, weight=1)
+
+        self.key_save_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Save Key As:", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=0, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.key_save_path, width=500).grid(row=1, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse Save Location", command=self.browse_key_save, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=1, column=1, padx=5)
+
+        ctk.CTkButton(tab, text="🧬 GENERATE KEY", command=self.generate_key, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33", font=("OCR A Extended", 16, "bold")).grid(row=2, column=0, pady=20)
 
     def setup_logs_tab(self):
-        tab = self.tabview.tab("📜 Activity Logs")
-        self.log_text = ctk.CTkTextbox(tab, wrap="word", font=("Consolas", 12))
+        tab = self.notebook.tab("📜 Activity Logs")
+        self.log_text = ctk.CTkTextbox(tab, font=("Consolas", 12), text_color=NEON_GREEN, fg_color="#001100")
         self.log_text.pack(fill="both", expand=True, padx=10, pady=10)
-        self.log_text.tag_config("green", foreground="#00ff44")
-        self.log_text.insert("1.0", "🔒 G-CryptX Activity Log Initialized\n", "green")
         self.log_text.configure(state="disabled")
 
     def setup_internal_tab(self):
-        tab = self.tabview.tab("Internal Encryption")
-        ctk.CTkLabel(tab, text="Convert any .py file into self-decrypting encrypted script", 
-                     font=("OCR A Extended", 16), text_color="#00ff88").pack(pady=10)
-        self.internal_file_path = ctk.CTkEntry(tab, placeholder_text="Python file to encrypt (e.g., app.py)...", width=500, font=("Consolas", 12))
-        self.internal_file_path.pack(pady=5)
-        ctk.CTkButton(tab, text="Browse", command=lambda: self.browse_file(self.internal_file_path, [("Python Files", "*.py")])).pack(pady=5)
-        ctk.CTkButton(tab, text="🔥 ENCRYPT & MAKE SELF-RUNNING", command=self.internal_encrypt, 
-                      fg_color="#005500", hover_color="#00aa00", font=("OCR A Extended", 14, "bold")).pack(pady=20)
-        ctk.CTkLabel(tab, text="💡 Result: Same filename, but encrypted. Run with: python script.py", 
-                     font=("Consolas", 12), text_color="#00cc66").pack(pady=10)
+        tab = self.notebook.tab("Internal Encryption")
+        tab.grid_columnconfigure(0, weight=1)
 
-    def browse_file(self, entry_widget, filetypes=[("All Files", "*.*")]):
-        from tkinter import filedialog
-        path = filedialog.askopenfilename(filetypes=filetypes)
-        if path:
-            entry_widget.delete(0, "end")
-            entry_widget.insert(0, path)
+        self.internal_file_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Select Python File for In-Place Encryption:", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=0, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.internal_file_path, width=500).grid(row=1, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse", command=self.browse_internal_file, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=1, column=1, padx=5)
 
-    def generate_key(self):
-        key = AESGCM.generate_key(bit_length=256)
-        b64_key = base64.b64encode(key).decode()
-        self.key_output.delete("1.0", "end")
-        self.key_output.insert("1.0", b64_key)
-        self.log("🔑 New AES-256 key generated.")
-        play_success_sound()
+        self.internal_key_path = ctk.StringVar()
+        ctk.CTkLabel(tab, text="Key File (or leave empty to generate):", text_color=NEON_GREEN, font=("Consolas", 14)).grid(row=2, column=0, pady=5)
+        ctk.CTkEntry(tab, textvariable=self.internal_key_path, width=500).grid(row=3, column=0, pady=5)
+        ctk.CTkButton(tab, text="Browse Key", command=self.browse_internal_key, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33").grid(row=3, column=1, padx=5)
 
-    def save_key_securely(self):
-        key_text = self.key_output.get("1.0", "end").strip()
-        if not key_text:
-            self.log("❌ No key to save!", "red")
-            play_error_sound()
-            return
-        password = self.key_pass.get()
-        if not password:
-            self.log("⚠️ Warning: Saving key without password protection.", "yellow")
-        # In real app, you'd encrypt the key with password using PBKDF2
-        from tkinter import filedialog
-        save_path = filedialog.asksaveasfilename(defaultextension=".key", filetypes=[("Key Files", "*.key")])
-        if save_path:
-            with open(save_path, "w") as f:
-                f.write(key_text)
-            self.log(f"💾 Key saved to: {save_path}")
+        ctk.CTkButton(tab, text="🔥 ENCRYPT IN-PLACE (Self-Executing)", command=self.encrypt_inplace, fg_color=NEON_GREEN, text_color="black", hover_color="#00cc33", font=("OCR A Extended", 16, "bold")).grid(row=4, column=0, pady=20)
+
+    # === Utility Functions ===
+    def browse_encrypt_file(self):
+        path = filedialog.askopenfilename(filetypes=[("Python Files", "*.py")])
+        if path: self.encrypt_file_path.set(path)
+
+    def browse_decrypt_file(self):
+        path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.py.enc"), ("All Files", "*.*")])
+        if path: self.decrypt_file_path.set(path)
+
+    def browse_run_file(self):
+        path = filedialog.askopenfilename(filetypes=[("Encrypted Python", "*.py.enc")])
+        if path: self.run_file_path.set(path)
+
+    def browse_key_file(self):
+        path = filedialog.askopenfilename(filetypes=[("Key Files", "*.key")])
+        if path: self.encrypt_key_path.set(path)
+
+    def browse_key_file_decrypt(self):
+        path = filedialog.askopenfilename(filetypes=[("Key Files", "*.key")])
+        if path: self.decrypt_key_path.set(path)
+
+    def browse_key_file_run(self):
+        path = filedialog.askopenfilename(filetypes=[("Key Files", "*.key")])
+        if path: self.run_key_path.set(path)
+
+    def browse_key_save(self):
+        path = filedialog.asksaveasfilename(defaultextension=".key", filetypes=[("Key Files", "*.key")])
+        if path: self.key_save_path.set(path)
+
+    def browse_internal_file(self):
+        path = filedialog.askopenfilename(filetypes=[("Python Files", "*.py")])
+        if path: self.internal_file_path.set(path)
+
+    def browse_internal_key(self):
+        path = filedialog.askopenfilename(filetypes=[("Key Files", "*.key")])
+        if path: self.internal_key_path.set(path)
+
+    def load_key(self, key_path):
+        with open(key_path, "rb") as f:
+            return f.read()
+
+    def derive_key_from_password(self, password: str, salt: bytes) -> bytes:
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+        )
+        return kdf.derive(password.encode())
 
     def encrypt_file(self):
-        filepath = self.encrypt_file_path.get()
-        if not os.path.isfile(filepath):
-            self.log("❌ File not found!", "red")
-            play_error_sound()
+        file_path = self.encrypt_file_path.get()
+        key_path = self.encrypt_key_path.get()
+        if not file_path or not key_path:
+            messagebox.showerror("Error", "Please select both file and key.")
             return
-
-        key = AESGCM.generate_key(bit_length=256)
-        nonce = secrets.token_bytes(12)
-        aesgcm = AESGCM(key)
-        with open(filepath, "rb") as f:
-            data = f.read()
-        encrypted = aesgcm.encrypt(nonce, data, None)
-
-        output_path = filepath + ".gcx"
-        with open(output_path, "wb") as f:
-            f.write(nonce + encrypted)
-
-        b64_key = base64.b64encode(key).decode()
-        self.log(f"✅ Encrypted: {output_path}")
-        self.log(f"🔑 Key (SAVE IT): {b64_key}")
-        play_success_sound()
-
-        # Auto-show in key generator tab
-        self.key_output.delete("1.0", "end")
-        self.key_output.insert("1.0", b64_key)
+        try:
+            key = self.load_key(key_path)
+            aesgcm = AESGCM(key)
+            with open(file_path, "rb") as f:
+                data = f.read()
+            nonce = secrets.token_bytes(12)
+            encrypted = aesgcm.encrypt(nonce, data, None)
+            out_path = file_path + ".enc"
+            with open(out_path, "wb") as f:
+                f.write(nonce + encrypted)
+            logger.info(f"✅ Encrypted: {out_path}")
+            play_sound(True)
+            messagebox.showinfo("Success", f"File encrypted to:\n{out_path}")
+        except Exception as e:
+            logger.error(f"❌ Encryption failed: {e}")
+            play_sound(False)
+            messagebox.showerror("Error", str(e))
 
     def decrypt_file(self):
-        filepath = self.decrypt_file_path.get()
-        key_b64 = self.decrypt_key.get()
-        if not os.path.isfile(filepath):
-            self.log("❌ Encrypted file not found!", "red")
-            play_error_sound()
+        file_path = self.decrypt_file_path.get()
+        key_path = self.decrypt_key_path.get()
+        if not file_path or not key_path:
+            messagebox.showerror("Error", "Please select both file and key.")
             return
         try:
-            key = base64.b64decode(key_b64)
-            with open(filepath, "rb") as f:
+            key = self.load_key(key_path)
+            aesgcm = AESGCM(key)
+            with open(file_path, "rb") as f:
                 data = f.read()
             nonce = data[:12]
             ciphertext = data[12:]
-            aesgcm = AESGCM(key)
             decrypted = aesgcm.decrypt(nonce, ciphertext, None)
-
-            output_path = filepath.replace(".gcx", ".decrypted")
-            if output_path == filepath:
-                output_path += ".decrypted"
-            with open(output_path, "wb") as f:
+            out_path = file_path.replace(".enc", ".decrypted.py")
+            with open(out_path, "wb") as f:
                 f.write(decrypted)
-            self.log(f"✅ Decrypted to: {output_path}")
-            play_success_sound()
+            logger.info(f"✅ Decrypted: {out_path}")
+            play_sound(True)
+            messagebox.showinfo("Success", f"File decrypted to:\n{out_path}")
         except Exception as e:
-            self.log(f"❌ Decryption failed: {str(e)}", "red")
-            play_error_sound()
+            logger.error(f"❌ Decryption failed: {e}")
+            play_sound(False)
+            messagebox.showerror("Error", str(e))
 
     def run_encrypted_script(self):
-        filepath = self.run_file_path.get()
-        if not os.path.isfile(filepath):
-            self.log("❌ Script not found!", "red")
-            play_error_sound()
+        file_path = self.run_file_path.get()
+        key_path = self.run_key_path.get()
+        if not file_path or not key_path:
+            messagebox.showerror("Error", "Please select both file and key.")
             return
         try:
-            with open(filepath, "rb") as f:
+            key = self.load_key(key_path)
+            aesgcm = AESGCM(key)
+            with open(file_path, "rb") as f:
                 data = f.read()
-            if len(data) < 13:
-                raise ValueError("Invalid encrypted file")
-
             nonce = data[:12]
             ciphertext = data[12:]
-            key_b64 = self.decrypt_key.get() or base64.b64encode(AESGCM.generate_key(256)).decode()
-            key = base64.b64decode(key_b64)
+            decrypted = aesgcm.decrypt(nonce, ciphertext, None)
+            logger.info(f"🚀 Executing {file_path} in memory...")
+            exec(decrypted, {"__name__": "__main__"})
+            logger.info("✅ Script executed successfully.")
+            play_sound(True)
+        except Exception as e:
+            logger.error(f"❌ Execution failed: {e}")
+            play_sound(False)
+            messagebox.showerror("Error", str(e))
+
+    def generate_key(self):
+        path = self.key_save_path.get()
+        if not path:
+            messagebox.showerror("Error", "Please specify key save path.")
+            return
+        try:
+            key = AESGCM.generate_key(bit_length=256)
+            with open(path, "wb") as f:
+                f.write(key)
+            logger.info(f"✅ Key generated: {path}")
+            play_sound(True)
+            messagebox.showinfo("Success", f"Key saved to:\n{path}")
+        except Exception as e:
+            logger.error(f"❌ Key generation failed: {e}")
+            play_sound(False)
+            messagebox.showerror("Error", str(e))
+
+    def encrypt_inplace(self):
+        file_path = self.internal_file_path.get()
+        key_path = self.internal_key_path.get()
+        if not file_path:
+            messagebox.showerror("Error", "Select a Python file.")
+            return
+        try:
+            if not key_path:
+                key = AESGCM.generate_key(bit_length=256)
+                key_path = file_path + ".auto.key"
+                with open(key_path, "wb") as f:
+                    f.write(key)
+                logger.info(f"🔑 Auto-generated key: {key_path}")
+            else:
+                key = self.load_key(key_path)
+
+            with open(file_path, "rb") as f:
+                original_code = f.read()
 
             aesgcm = AESGCM(key)
-            source = aesgcm.decrypt(nonce, ciphertext, None).decode()
+            nonce = secrets.token_bytes(12)
+            encrypted = aesgcm.encrypt(nonce, original_code, None)
 
-            # Execute in memory
-            self.log(f"▶️ Executing encrypted script: {filepath}")
-            old_stdout, old_stderr = sys.stdout, sys.stderr
-            captured_output = StringIO()
-            sys.stdout = sys.stderr = captured_output
-
-            try:
-                exec(source, {"__file__": filepath})
-                output = captured_output.getvalue()
-                if output.strip():
-                    self.log("📝 Script Output:\n" + output)
-                self.log("✅ Script executed successfully in memory.")
-                play_success_sound()
-            except Exception as e:
-                error_msg = traceback.format_exc()
-                self.log(f"💥 Runtime Error:\n{error_msg}", "red")
-                play_error_sound()
-            finally:
-                sys.stdout, sys.stderr = old_stdout, old_stderr
-        except Exception as e:
-            self.log(f"❌ Failed to run encrypted script: {str(e)}", "red")
-            play_error_sound()
-
-    def internal_encrypt(self):
-        filepath = self.internal_file_path.get()
-        if not filepath.endswith(".py") or not os.path.isfile(filepath):
-            self.log("❌ Please select a valid .py file!", "red")
-            play_error_sound()
-            return
-
-        with open(filepath, "r") as f:
-            source_code = f.read()
-
-        # Encrypt source
-        key = AESGCM.generate_key(bit_length=256)
-        nonce = secrets.token_bytes(12)
-        aesgcm = AESGCM(key)
-        encrypted = aesgcm.encrypt(nonce, source_code.encode(), None)
-
-        # Create self-decrypting loader
-        loader_code = f'''
-# G-CryptX Encrypted Python Script - Ghost ©
-import base64, sys
+            # Build loader
+            loader_code = f'''
+# G-CryptX In-Place Encrypted Script — DO NOT MODIFY
+import sys, os, base64
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-encrypted_data = {repr(base64.b64encode(nonce + encrypted).decode())}
-key = {repr(base64.b64encode(key).decode())}
-try:
-    data = base64.b64decode(encrypted_data)
-    nonce = data[:12]
-    ciphertext = data[12:]
-    aesgcm = AESGCM(base64.b64decode(key))
-    source = aesgcm.decrypt(nonce, ciphertext, None)
-    exec(source, {{"__file__": sys.argv[0]}})
-except Exception as e:
-    print("❌ Decryption or execution failed. Unauthorized access detected.")
+key_path = __file__ + ".key"
+if not os.path.exists(key_path):
+    print("❌ Missing key file:", key_path)
     sys.exit(1)
+with open(key_path, "rb") as f: key = f.read()
+with open(__file__, "rb") as f:
+    data = f.read()
+start_marker = b"# ENCRYPTED PAYLOAD:"
+idx = data.find(start_marker)
+if idx == -1:
+    print("❌ Invalid encrypted file")
+    sys.exit(1)
+payload = base64.b64decode(data[idx+len(start_marker):].strip())
+nonce = payload[:12]
+ct = payload[12:]
+aesgcm = AESGCM(key)
+try:
+    code = aesgcm.decrypt(nonce, ct, None)
+    exec(code)
+except Exception as e:
+    print("❌ Decryption/Execution failed:", e)
 '''
+            encrypted_b64 = base64.b64encode(nonce + encrypted).decode()
+            full_script = loader_code + "\n# ENCRYPTED PAYLOAD:" + encrypted_b64
 
-        output_path = filepath  # overwrite original
-        with open(output_path, "w") as f:
-            f.write(loader_code)
+            with open(file_path, "w") as f:
+                f.write(full_script)
 
-        self.log(f"🔥 Self-decrypting script created: {output_path}")
-        self.log(f"🔑 Encryption key: {base64.b64encode(key).decode()}")
-        play_success_sound()
+            # Save key
+            with open(key_path, "wb") as f:
+                f.write(key)
 
-    def toggle_stealth(self):
-        # Switch to fake terminal
-        self.withdraw()
-        stealth = ctk.CTkToplevel()
-        stealth.title("Terminal - user@ghost")
-        stealth.geometry("800x600")
-        stealth.configure(fg_color="#000000")
+            logger.info(f"🔥 In-place encryption completed: {file_path}")
+            play_sound(True)
+            messagebox.showinfo("Success", f"File is now self-decrypting!\nKey: {key_path}")
+        except Exception as e:
+            logger.error(f"❌ In-place encryption failed: {e}")
+            play_sound(False)
+            messagebox.showerror("Error", str(e))
 
-        term = ctk.CTkTextbox(stealth, font=("Consolas", 12), text_color="#00ff00", fg_color="#000000")
-        term.pack(fill="both", expand=True)
-        term.insert("1.0", "user@ghost:~$ \n")
-        term.configure(state="disabled")
+    def update_log_display(self):
+        self.log_text.configure(state="normal")
+        self.log_text.delete("1.0", "end")
+        for line in log_stream[-500:]:
+            self.log_text.insert("end", line + "\n")
+        self.log_text.yview("end")
+        self.log_text.configure(state="disabled")
 
-        def on_close():
-            stealth.destroy()
-            self.deiconify()
 
-        stealth.protocol("WM_DELETE_WINDOW", on_close)
-
-    def on_closing(self):
-        if messagebox := getattr(ctk, "messagebox", None):
-            confirm = messagebox.askokcancel("Exit", "Are you sure you want to quit G-CryptX?")
-        else:
-            import tkinter.messagebox as tkmsg
-            confirm = tkmsg.askokcancel("Exit", "Are you sure you want to quit G-CryptX?")
-        if confirm:
-            self.quit()
-
-# ============= MAIN ENTRY =============
+# --- Main Entry ---
 if __name__ == "__main__":
+    import io  # needed for audio
+
+    ctk.set_appearance_mode("Dark")
+    ctk.set_default_color_theme("dark-blue")
+
     app = GCryptXApp()
     app.mainloop()
