@@ -1,116 +1,71 @@
+# .github/workflows/build-appimage.yml
 name: Build G-CryptX AppImage
 
 on:
   push:
     branches: [ main ]
-  release:
-    types: [ published ]
-  workflow_dispatch:  # Allows manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
-  build-appimage:
+  build:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: 🛑 Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      - name: 🐍 Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
+    - name: Install system deps
+      run: |
+        sudo apt update
+        sudo apt install -y python3-tk ffmpeg libasound2-dev
 
-      - name: 📦 Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-0 libgdk-pixbuf2.0-0 libxtst6 libxrender1 libxrandr2 libgl1 libegl1 libfontconfig1 libxkbcommon0 libxcb-cursor0
-          pip install cryptography customtkinter pillow psutil
+    - name: Install Python deps
+      run: |
+        pip install pyinstaller customtkinter cryptography pydub
 
-      - name: 🖼️ Ensure Icon Exists
-        run: |
-          if [ ! -f G-CryptX.png ]; then
-            echo "⚠️ G-CryptX.png not found! Creating placeholder..."
-            convert -size 256x256 xc:#000000 -fill '#00ff44' -gravity center -pointsize 40 -annotate 0 'G-CryptX' G-CryptX.png
-          fi
+    - name: Create icon
+      run: |
+        convert -size 256x256 -background black -fill '#00ff41' -gravity center -pointsize 100 label:"G\nC" G-CryptX.png
 
-      - name: 🧪 Test Script Execution
-        run: python3 G-CryptX.py --help || echo "No --help, but script loads."
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --onefile --windowed --add-data="G-CryptX.png:." \
+          --name=G-CryptX \
+          --icon=G-CryptX.png \
+          G-CryptX.py
 
-      - name: 🚀 Download linuxdeploy and AppDir tools
-        run: |
-          wget -c "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-          wget -c "https://github.com/linuxdeploy/linuxdeploy-plugin-python/releases/download/continuous/linuxdeploy-plugin-python-x86_64.AppImage"
-          chmod +x linuxdeploy*.AppImage
+    - name: Download AppImage tools
+      run: |
+        wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+        chmod +x appimagetool
 
-      - name: 🏗️ Create AppDir Structure
-        run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-
-          # Copy main script
-          cp G-CryptX.py AppDir/usr/bin/G-CryptX
-          chmod +x AppDir/usr/bin/G-CryptX
-
-          # Copy icon
-          cp G-CryptX.png AppDir/usr/share/icons/hicolor/256x256/apps/G-CryptX.png
-
-          # Create desktop file
-          cat > AppDir/usr/share/applications/G-CryptX.desktop << EOF
+    - name: Prepare AppDir
+      run: |
+        mkdir -p G-CryptX.AppDir/usr/bin
+        mkdir -p G-CryptX.AppDir/usr/share/icons/hicolor/256x256/apps
+        cp dist/G-CryptX G-CryptX.AppDir/usr/bin/
+        cp G-CryptX.png G-CryptX.AppDir/usr/share/icons/hicolor/256x256/apps/G-CryptX.png
+        cat > G-CryptX.AppDir/G-CryptX.desktop <<EOF
 [Desktop Entry]
 Name=G-CryptX
 Exec=G-CryptX
 Icon=G-CryptX
 Type=Application
 Categories=Utility;Security;
-Comment=Advanced Python Encryption Tool — Ghost ©
-Terminal=false
+Comment=Ghost Encryption Engine for Python Files
 EOF
 
-          # Create AppRun launcher
-          cat > AppDir/AppRun << 'EOF'
-#!/bin/sh
-HERE="$(dirname "$(readlink -f "${0}")")"
-exec "${HERE}/usr/bin/G-CryptX" "$@"
-EOF
-          chmod +x AppDir/AppRun
+    - name: Build AppImage
+      run: |
+        ./appimagetool G-CryptX.AppDir
 
-      - name: 🔧 Build AppImage with linuxdeploy + Python plugin
-        env:
-          ARCH: x86_64
-        run: |
-          export VERSION=$(date +%Y.%m.%d)
-          ./linuxdeploy-x86_64.AppImage \
-            --appdir AppDir \
-            --plugin python \
-            --output appimage \
-            --desktop-file AppDir/usr/share/applications/G-CryptX.desktop \
-            --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/G-CryptX.png
-
-      - name: ✅ Rename & Verify AppImage
-        run: |
-          mv G-CryptX*.AppImage G-CryptX-x86_64.AppImage
-          chmod +x G-CryptX-x86_64.AppImage
-          file G-CryptX-x86_64.AppImage
-          ./G-CryptX-x86_64.AppImage --appimage-version
-
-      - name: 📤 Upload AppImage Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: G-CryptX-AppImage
-          path: G-CryptX-x86_64.AppImage
-
-      - name: 🚀 Publish to Release (if tagged)
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: G-CryptX-x86_64.AppImage
-          name: G-CryptX v${{ github.event.release.tag_name }} (AppImage)
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: G-CryptX-Linux.AppImage
+        path: G-CryptX*.AppImage
